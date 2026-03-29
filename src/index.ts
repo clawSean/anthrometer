@@ -14,9 +14,9 @@ function q(s: string) {
   return `'${String(s).replace(/'/g, `'\\''`)}'`;
 }
 
-function fetchUsageRaw(sessionName: string, timeoutMs: number): string {
+function fetchUsageRaw(sessionName: string, timeoutMs: number, claudeCommand: string): string {
   const cmd = [
-    `tmux has-session -t ${q(sessionName)} 2>/dev/null || tmux new-session -d -s ${q(sessionName)} -x 120 -y 40 'claude'`,
+    `tmux has-session -t ${q(sessionName)} 2>/dev/null || tmux new-session -d -s ${q(sessionName)} -x 120 -y 40 ${q(claudeCommand)}`, 
     `sleep 1`,
     `tmux send-keys -t ${q(sessionName)} C-c`,
     `tmux send-keys -t ${q(sessionName)} C-l`,
@@ -32,10 +32,11 @@ export default function register(api: any) {
   const cfg = api.getConfig?.() || {};
   const tmuxSession = cfg.tmuxSession || "claude_usage_cmd";
   const timeoutMs = typeof cfg.timeoutMs === "number" ? cfg.timeoutMs : 20000;
+  const claudeCommand = cfg.claudeCommand || "claude";
 
   const handler = async (ctx: any) => {
     try {
-      const raw = fetchUsageRaw(tmuxSession, timeoutMs);
+      const raw = fetchUsageRaw(tmuxSession, timeoutMs, claudeCommand);
       const parsed = parseUsage(raw);
       const wantRaw = /(?:^|\s)(raw|--raw)(?:\s|$)/i.test(String(ctx?.args || ""));
       if (wantRaw) return { text: parsed.clean.slice(-3500) };

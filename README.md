@@ -15,10 +15,13 @@ Place this folder under:
 
 `~/.openclaw/extensions/anthrometer`
 
+This plugin is packaged with `openclaw.extensions = ["./src/index.ts"]` and also provides a root `index.ts` shim for compatibility across loader modes.
+
 Enable in `openclaw.json`:
 
 - `plugins.allow` includes `"anthrometer"`
 - `plugins.entries["anthrometer"].enabled = true`
+- optional: `plugins.entries["anthrometer"].config.claudeCommand` (default `"claude"`)
 
 Restart gateway.
 
