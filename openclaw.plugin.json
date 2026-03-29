@@ -1,0 +1,14 @@
+{
+  "id": "anthrometer",
+  "name": "Anthrometer",
+  "version": "0.1.0",
+  "description": "No-LLM Anthropic usage meter slash command for OpenClaw.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "tmuxSession": { "type": "string", "default": "claude_usage_cmd" },
+      "timeoutMs": { "type": "number", "default": 20000 }
+    }
+  }
+}

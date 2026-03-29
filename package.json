@@ -1,0 +1,13 @@
+{
+  "name": "anthrometer",
+  "version": "0.1.0",
+  "private": false,
+  "type": "module",
+  "description": "No-LLM Anthropic usage meter plugin for OpenClaw",
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
