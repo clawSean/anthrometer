@@ -91,21 +91,5 @@ export default function register(api: any) {
     handler,
   });
 
-  api.registerCommand({
-    name: "anthropic_usage",
-    description: "Alias for /anthrometer",
-    acceptsArgs: true,
-    requireAuth: true,
-    handler,
-  });
-
-  api.registerCommand({
-    name: "claude_usage",
-    description: "Alias for /anthrometer",
-    acceptsArgs: true,
-    requireAuth: true,
-    handler,
-  });
-
-  api.logger?.info?.("[anthrometer] Loaded: /anthrometer, /anthropic_usage, /claude_usage");
+  api.logger?.info?.("[anthrometer] Loaded: /anthrometer");
 }

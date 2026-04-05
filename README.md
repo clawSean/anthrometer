@@ -4,8 +4,6 @@ No-LLM Anthropic usage meter plugin for OpenClaw.
 
 ## Commands
 - `/anthrometer`
-- `/anthropic_usage` (alias)
-- `/claude_usage` (alias)
 - add `raw` argument for diagnostics: `/anthrometer raw`
 
 ## Behavior
