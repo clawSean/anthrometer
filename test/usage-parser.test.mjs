@@ -1,17 +1,31 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseUsage, formatUsage, stripAnsi } from '../src/usage-parser.mjs';
+import { parseUsage, formatUsage, stripAnsi, parseResetTime, formatDuration } from '../src/usage-parser.mjs';
 
-const sample = `
+const fixedNow = new Date('2026-04-05T05:20:00Z');
+
+const subscriptionSample = `
 Status Config Usage
 Current session
-████ 59% used
-Resets 10am (UTC)
+                                                     0% used
+Resets 9:59am (UTC)
+
 Current week (all models)
-████ 85% used
-Resets 3pm (UTC)
+██████████████████████████████████                   68% used
+Resets Apr 10, 3pm (UTC)
+
 Extra usage
-Extra usage not enabled • /extra-usage to enable
+████████████████████████████████████████████████████ 100% used
+$5.75 / $5.00 spent · Resets May 1 (UTC)
+`;
+
+const apiSample = `
+Status Config Usage
+API usage
+Current month
+██████████████                                       40% used
+Resets May 1 (UTC)
+$12.40 / $50.00 spent
 `;
 
 test('stripAnsi removes escapes', () => {
@@ -19,17 +33,55 @@ test('stripAnsi removes escapes', () => {
   assert.equal(stripAnsi(s), 'Red');
 });
 
-test('parseUsage reads percentages and resets', () => {
-  const p = parseUsage(sample);
-  assert.equal(p.sessionPct, '59');
-  assert.equal(p.sessionReset, '10am (UTC)');
-  assert.equal(p.weekPct, '85');
-  assert.equal(p.weekReset, '3pm (UTC)');
-  assert.equal(p.extra, 'not enabled');
+test('parseResetTime parses time-only UTC reset as next occurrence', () => {
+  const dt = parseResetTime('9:59am (UTC)', fixedNow);
+  assert.ok(dt instanceof Date);
+  assert.equal(dt.toISOString(), '2026-04-05T09:59:00.000Z');
 });
 
-test('formatUsage emits readable output', () => {
-  const out = formatUsage(parseUsage(sample));
-  assert.match(out, /Current session: 59% used/);
-  assert.match(out, /Current week: 85% used/);
+test('formatDuration formats countdown', () => {
+  assert.equal(formatDuration(65 * 60 * 1000), '1h 5m');
+  assert.equal(formatDuration(0), 'now');
+});
+
+test('parseUsage reads subscription 5h/week + extra usage availability', () => {
+  const p = parseUsage(subscriptionSample, fixedNow);
+
+  assert.equal(p.mode, 'subscription');
+  assert.equal(p.fiveHour.pctUsed, 0);
+  assert.equal(p.fiveHour.pctRemaining, 100);
+  assert.equal(p.fiveHour.resetText, '9:59am (UTC)');
+
+  assert.equal(p.week.pctUsed, 68);
+  assert.equal(p.week.pctRemaining, 32);
+  assert.equal(p.week.resetText, 'Apr 10, 3pm (UTC)');
+
+  assert.equal(p.extra.status, 'enabled');
+  assert.equal(p.extra.pctUsed, 100);
+  assert.equal(p.extra.pctRemaining, 0);
+  assert.equal(p.extra.spentUsd, 5.75);
+  assert.equal(p.extra.limitUsd, 5.0);
+  assert.equal(p.extra.availableUsd, 0);
+  assert.equal(p.extra.overUsd, 0.75);
+
+  // Ensure we did not misclassify this as API budget.
+  assert.equal(p.api, null);
+});
+
+test('parseUsage reads API month usage when present', () => {
+  const p = parseUsage(apiSample, fixedNow);
+
+  assert.equal(p.api.pctUsed, 40);
+  assert.equal(p.api.pctRemaining, 60);
+  assert.equal(p.api.spentUsd, 12.4);
+  assert.equal(p.api.limitUsd, 50);
+  assert.equal(p.api.remainingUsd, 37.6);
+});
+
+test('formatUsage emits clear remaining usage lines', () => {
+  const out = formatUsage(parseUsage(subscriptionSample, fixedNow));
+  assert.match(out, /5-hour window: 0% used \(100% remaining\)/);
+  assert.match(out, /Current week: 68% used \(32% remaining\)/);
+  assert.match(out, /Extra usage: \$5\.75 \/ \$5\.00 spent · \$0\.00 available · over by \$0\.75/);
+  assert.match(out, /reset:/i);
 });

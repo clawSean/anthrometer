@@ -10,6 +10,14 @@ No-LLM Anthropic usage meter plugin for OpenClaw.
 ## Behavior
 Anthrometer drives `claude` CLI in a tmux session, runs `/usage`, parses meter output, and returns factual usage lines without invoking LLM inference.
 
+It now supports both **subscription** and **API-style** usage layouts when present in Claude usage output.
+
+### Reported fields
+- **5-hour window**: used %, remaining %, reset time, and countdown (`in Xh Ym`)
+- **Weekly window**: used %, remaining %, reset time, and countdown
+- **Extra usage**: enabled/exhausted state, spent vs cap, available amount, overage amount, reset time/countdown
+- **API budget** (when available): month usage %, dollars spent/cap, dollars remaining, reset countdown
+
 ## Install (local extension)
 Place this folder under:
 
