@@ -3,9 +3,10 @@
 No-LLM Anthropic usage meter plugin for OpenClaw.
 
 ## Commands
-- `/anthropic_usage`
+- `/anthrometer`
+- `/anthropic_usage` (alias)
 - `/claude_usage` (alias)
-- add `raw` argument for diagnostics: `/anthropic_usage raw`
+- add `raw` argument for diagnostics: `/anthrometer raw`
 
 ## Behavior
 Anthrometer drives `claude` CLI in a tmux session, runs `/usage`, parses meter output, and returns factual usage lines without invoking LLM inference.
