@@ -245,15 +245,50 @@ export function parseUsage(raw = "", now = new Date()) {
   };
 }
 
-function fmtPctLine(label, section) {
+function barFillGlyph(pct) {
+  if (pct >= 85) return "🟥";
+  if (pct >= 65) return "🟧";
+  if (pct >= 35) return "🟨";
+  return "🟩";
+}
+
+function progressBar(pct, width = 10) {
+  if (typeof pct !== "number" || Number.isNaN(pct)) return "";
+  const n = Math.max(0, Number(pct));
+  const capped = Math.min(100, n);
+  const raw = (capped / 100) * width;
+  let filled = Math.floor(raw);
+  if (capped > 0 && filled === 0) filled = 1;
+  const fill = barFillGlyph(n);
+  return fill.repeat(filled) + "⬜".repeat(Math.max(0, width - filled));
+}
+
+function fmtWindowBlock(title, section, emoji = "•") {
   if (!section || section.pctUsed == null) return null;
-  let s = `• ${label}: ${section.pctUsed}% used`;
-  if (section.pctRemaining != null) s += ` (${section.pctRemaining}% remaining)`;
-  if (section.resetText) {
-    s += `\n  ↳ reset: ${section.resetText}`;
-    if (section.resetIn) s += ` (in ${section.resetIn})`;
+  const pct = section.pctUsed;
+  const rem = section.pctRemaining;
+  const bar = progressBar(pct, 10);
+
+  const lines = [
+    `${emoji} ${title}: ${bar}  ${pct}% used${rem != null ? ` · ${rem}% left` : ""}`,
+  ];
+
+  if (section.resetText || section.resetIn) {
+    const parts = [];
+    if (section.resetText) parts.push(section.resetText);
+    if (section.resetIn) parts.push(`in ${section.resetIn}`);
+    lines.push(`   ↺ resets ${parts.join(" · ")}`);
   }
-  return s;
+
+  return lines.join("\n");
+}
+
+function formatResetLine(prefix, resetText, resetIn) {
+  const parts = [];
+  if (resetText) parts.push(resetText);
+  if (resetIn) parts.push(`in ${resetIn}`);
+  if (!parts.length) return null;
+  return `${prefix}${parts.join(" · ")}`;
 }
 
 function computeStatus(parsed) {
@@ -299,75 +334,66 @@ function computeStatus(parsed) {
 
 export function formatUsage(parsed) {
   const status = computeStatus(parsed);
-  const lines = [`📊 Anthropic Usage — ${status.emoji} ${status.label}`, ""];
+  const modeSuffix = parsed?.mode && parsed.mode !== "unknown" ? ` · ${parsed.mode}` : "";
+  const lines = [`📊 Anthrometer — ${status.emoji} ${status.label}${modeSuffix}`];
 
-  if (parsed?.mode && parsed.mode !== "unknown") {
-    lines.push("Summary", `• Mode: ${parsed.mode}`);
-  }
-
-  const fiveHourLine = fmtPctLine("5-hour window", parsed?.fiveHour);
-  const weekLine = fmtPctLine("Current week", parsed?.week);
+  const fiveHourLine = fmtWindowBlock("5h", parsed?.fiveHour, "⚡");
+  const weekLine = fmtWindowBlock("Week", parsed?.week, "📆");
   if (fiveHourLine || weekLine) {
-    lines.push("", "Subscription Windows");
+    lines.push("", "📅 Subscription");
     if (fiveHourLine) lines.push(fiveHourLine);
     if (weekLine) lines.push(weekLine);
   }
 
   if (parsed?.api) {
     const a = parsed.api;
-    const apiParts = [];
-    if (a.spentUsd != null && a.limitUsd != null) {
-      apiParts.push(`$${a.spentUsd.toFixed(2)} / $${a.limitUsd.toFixed(2)} spent`);
-      if (a.remainingUsd != null) apiParts.push(`$${a.remainingUsd.toFixed(2)} remaining`);
-    }
+    lines.push("", "🧾 API Budget");
+
     if (a.pctUsed != null) {
-      apiParts.push(`${a.pctUsed}% used`);
-      if (a.pctRemaining != null) apiParts.push(`${a.pctRemaining}% remaining`);
+      lines.push(`• Meter: ${progressBar(a.pctUsed, 10)}  ${a.pctUsed}% used${a.pctRemaining != null ? ` · ${a.pctRemaining}% left` : ""}`);
     }
-    if (apiParts.length) {
-      lines.push("", "API Budget");
-      let s = `• ${apiParts.join(" · ")}`;
-      if (a.resetText) {
-        s += `\n  ↳ reset: ${a.resetText}`;
-        if (a.resetIn) s += ` (in ${a.resetIn})`;
-      }
-      lines.push(s);
+
+    if (a.spentUsd != null && a.limitUsd != null) {
+      let spend = `• Spend: $${a.spentUsd.toFixed(2)} / $${a.limitUsd.toFixed(2)} spent`;
+      if (a.remainingUsd != null) spend += ` · $${a.remainingUsd.toFixed(2)} left`;
+      lines.push(spend);
     }
+
+    const apiReset = formatResetLine("• ↺ resets ", a.resetText, a.resetIn);
+    if (apiReset) lines.push(apiReset);
   }
 
   const ex = parsed?.extra;
   if (ex) {
-    lines.push("", "Extra Usage");
+    const exStatus = ex.status || "enabled";
+    lines.push("", `💸 Extra Usage${exStatus ? ` — ${exStatus}` : ""}`);
+
     if (ex.status === "not enabled") {
-      lines.push("• not enabled");
+      lines.push("• Not enabled");
     } else if (ex.status === "enabled" || ex.status === "exhausted" || ex.pctUsed != null || (ex.spentUsd != null && ex.limitUsd != null)) {
-      const chunks = [];
+      const pctFromDollars = (ex.spentUsd != null && ex.limitUsd != null && ex.limitUsd > 0)
+        ? (ex.spentUsd / ex.limitUsd) * 100
+        : null;
+      const meterPct = ex.pctUsed != null ? ex.pctUsed : pctFromDollars;
+      if (meterPct != null) {
+        lines.push(`• Meter: ${progressBar(meterPct, 10)}  ${Math.round(meterPct)}% used${ex.pctRemaining != null ? ` · ${ex.pctRemaining}% left` : ""}`);
+      }
+
       if (ex.spentUsd != null && ex.limitUsd != null) {
-        chunks.push(`$${ex.spentUsd.toFixed(2)} / $${ex.limitUsd.toFixed(2)} spent`);
-        if (ex.availableUsd != null) chunks.push(`$${ex.availableUsd.toFixed(2)} available`);
-        if (ex.overUsd && ex.overUsd > 0) chunks.push(`over by $${ex.overUsd.toFixed(2)}`);
-      } else if (ex.pctUsed != null) {
-        chunks.push(`${ex.pctUsed}% used`);
-        if (ex.pctRemaining != null) chunks.push(`${ex.pctRemaining}% available`);
+        let spend = `• Spend: $${ex.spentUsd.toFixed(2)} / $${ex.limitUsd.toFixed(2)} spent`;
+        if (ex.availableUsd != null) spend += ` · $${ex.availableUsd.toFixed(2)} left`;
+        if (ex.overUsd != null && ex.overUsd > 0) spend += ` · over cap by $${ex.overUsd.toFixed(2)}`;
+        lines.push(spend);
       }
 
-      let head = "•";
-      if (ex.status === "exhausted") head += " exhausted";
-      else head += " enabled";
-      if (chunks.length) head += `: ${chunks.join(" · ")}`;
-      lines.push(head);
-
-      if (ex.resetText) {
-        let resetLine = `  ↳ reset: ${ex.resetText}`;
-        if (ex.resetIn) resetLine += ` (in ${ex.resetIn})`;
-        lines.push(resetLine);
-      }
+      const exReset = formatResetLine("• ↺ resets ", ex.resetText, ex.resetIn);
+      if (exReset) lines.push(exReset);
     } else {
-      lines.push("• unknown");
+      lines.push("• Unknown");
     }
   }
 
-  lines.push("", `Action: ${status.hint}`);
+  lines.push("", `${status.emoji} ${status.hint}`);
 
   const rendered = lines.join("\n").trim();
   if (!rendered || rendered.length < 24) {
