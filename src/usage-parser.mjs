@@ -245,11 +245,22 @@ export function parseUsage(raw = "", now = new Date()) {
   };
 }
 
+function barFillGlyph(pct) {
+  if (pct >= 85) return "🟥";
+  if (pct >= 65) return "🟧";
+  if (pct >= 35) return "🟨";
+  return "🟩";
+}
+
 function progressBar(pct, width = 10) {
   if (typeof pct !== "number" || Number.isNaN(pct)) return "";
-  const clamped = Math.max(0, Math.min(100, Math.round(pct)));
-  const filled = Math.round((clamped / 100) * width);
-  return "█".repeat(filled) + "░".repeat(Math.max(0, width - filled));
+  const n = Math.max(0, Number(pct));
+  const capped = Math.min(100, n);
+  const raw = (capped / 100) * width;
+  let filled = Math.floor(raw);
+  if (capped > 0 && filled === 0) filled = 1;
+  const fill = barFillGlyph(n);
+  return fill.repeat(filled) + "⬜".repeat(Math.max(0, width - filled));
 }
 
 function fmtWindowBlock(title, section, emoji = "•") {
@@ -259,11 +270,14 @@ function fmtWindowBlock(title, section, emoji = "•") {
   const bar = progressBar(pct, 10);
 
   const lines = [
-    `${emoji} ${title}: ${bar} ${pct}%${rem != null ? ` (${rem}% left)` : ""}`,
+    `${emoji} ${title}: ${bar}  ${pct}% used${rem != null ? ` · ${rem}% left` : ""}`,
   ];
 
-  if (section.resetText) {
-    lines.push(`   Reset: ${section.resetText}${section.resetIn ? ` (in ${section.resetIn})` : ""}`);
+  if (section.resetText || section.resetIn) {
+    const parts = [];
+    if (section.resetText) parts.push(section.resetText);
+    if (section.resetIn) parts.push(`in ${section.resetIn}`);
+    lines.push(`   ↺ ${parts.join(" · ")}`);
   }
 
   return lines.join("\n");
@@ -330,15 +344,19 @@ export function formatUsage(parsed) {
     const a = parsed.api;
     lines.push("", "🧾 API Budget");
 
-    if (a.spentUsd != null && a.limitUsd != null) {
-      lines.push(`• Spent: $${a.spentUsd.toFixed(2)} / $${a.limitUsd.toFixed(2)}`);
-      if (a.remainingUsd != null) lines.push(`• Remaining: $${a.remainingUsd.toFixed(2)}`);
-    }
     if (a.pctUsed != null) {
-      lines.push(`• Usage: ${progressBar(a.pctUsed, 10)} ${a.pctUsed}%${a.pctRemaining != null ? ` (${a.pctRemaining}% left)` : ""}`);
+      lines.push(`• Meter: ${progressBar(a.pctUsed, 10)}  ${a.pctUsed}% used${a.pctRemaining != null ? ` · ${a.pctRemaining}% left` : ""}`);
     }
-    if (a.resetText) {
-      lines.push(`• Reset: ${a.resetText}${a.resetIn ? ` (in ${a.resetIn})` : ""}`);
+    if (a.spentUsd != null && a.limitUsd != null) {
+      let spend = `• Spend: $${a.spentUsd.toFixed(2)} / $${a.limitUsd.toFixed(2)}`;
+      if (a.remainingUsd != null) spend += ` · $${a.remainingUsd.toFixed(2)} left`;
+      lines.push(spend);
+    }
+    if (a.resetText || a.resetIn) {
+      const parts = [];
+      if (a.resetText) parts.push(a.resetText);
+      if (a.resetIn) parts.push(`in ${a.resetIn}`);
+      lines.push(`• Reset: ${parts.join(" · ")}`);
     }
   }
 
@@ -350,16 +368,26 @@ export function formatUsage(parsed) {
     } else if (ex.status === "enabled" || ex.status === "exhausted" || ex.pctUsed != null || (ex.spentUsd != null && ex.limitUsd != null)) {
       lines.push(`• Status: ${ex.status || "enabled"}`);
 
-      if (ex.spentUsd != null && ex.limitUsd != null) {
-        lines.push(`• Spent: $${ex.spentUsd.toFixed(2)} / $${ex.limitUsd.toFixed(2)}`);
-        if (ex.availableUsd != null) lines.push(`• Available: $${ex.availableUsd.toFixed(2)}`);
-        if (ex.overUsd != null && ex.overUsd > 0) lines.push(`• Over cap by: $${ex.overUsd.toFixed(2)}`);
-      } else if (ex.pctUsed != null) {
-        lines.push(`• Usage: ${progressBar(ex.pctUsed, 10)} ${ex.pctUsed}%${ex.pctRemaining != null ? ` (${ex.pctRemaining}% available)` : ""}`);
+      const pctFromDollars = (ex.spentUsd != null && ex.limitUsd != null && ex.limitUsd > 0)
+        ? (ex.spentUsd / ex.limitUsd) * 100
+        : null;
+      const meterPct = ex.pctUsed != null ? ex.pctUsed : pctFromDollars;
+      if (meterPct != null) {
+        lines.push(`• Meter: ${progressBar(meterPct, 10)}  ${Math.round(meterPct)}% used${ex.pctRemaining != null ? ` · ${ex.pctRemaining}% available` : ""}`);
       }
 
-      if (ex.resetText) {
-        lines.push(`• Reset: ${ex.resetText}${ex.resetIn ? ` (in ${ex.resetIn})` : ""}`);
+      if (ex.spentUsd != null && ex.limitUsd != null) {
+        let spend = `• Spend: $${ex.spentUsd.toFixed(2)} / $${ex.limitUsd.toFixed(2)}`;
+        if (ex.availableUsd != null) spend += ` · $${ex.availableUsd.toFixed(2)} available`;
+        lines.push(spend);
+        if (ex.overUsd != null && ex.overUsd > 0) lines.push(`• Over cap by: $${ex.overUsd.toFixed(2)}`);
+      }
+
+      if (ex.resetText || ex.resetIn) {
+        const parts = [];
+        if (ex.resetText) parts.push(ex.resetText);
+        if (ex.resetIn) parts.push(`in ${ex.resetIn}`);
+        lines.push(`• Reset: ${parts.join(" · ")}`);
       }
     } else {
       lines.push("• Unknown");
