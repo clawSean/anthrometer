@@ -256,18 +256,62 @@ function fmtPctLine(label, section) {
   return s;
 }
 
+function computeStatus(parsed) {
+  const ex = parsed?.extra;
+  if (ex?.status === "exhausted") {
+    return {
+      emoji: "🔴",
+      label: "RED",
+      hint: "Extra usage exhausted — switch Anthropic-heavy tasks to fallback providers.",
+    };
+  }
+
+  if (ex?.overUsd && ex.overUsd > 0) {
+    return {
+      emoji: "🔴",
+      label: "RED",
+      hint: "Over cap on extra usage — avoid Anthropic unless urgent.",
+    };
+  }
+
+  if (typeof parsed?.week?.pctUsed === "number" && parsed.week.pctUsed >= 80) {
+    return {
+      emoji: "🟡",
+      label: "YELLOW",
+      hint: "Weekly usage high — route routine tasks to cheaper models.",
+    };
+  }
+
+  if (typeof parsed?.fiveHour?.pctUsed === "number" && parsed.fiveHour.pctUsed >= 80) {
+    return {
+      emoji: "🟡",
+      label: "YELLOW",
+      hint: "5-hour window tight — avoid heavy bursts.",
+    };
+  }
+
+  return {
+    emoji: "🟢",
+    label: "GREEN",
+    hint: "Healthy usage headroom right now.",
+  };
+}
+
 export function formatUsage(parsed) {
-  const lines = ["📊 Anthropic Usage"]; 
+  const status = computeStatus(parsed);
+  const lines = [`📊 Anthropic Usage — ${status.emoji} ${status.label}`, ""];
 
   if (parsed?.mode && parsed.mode !== "unknown") {
-    lines.push(`• Mode: ${parsed.mode}`);
+    lines.push("Summary", `• Mode: ${parsed.mode}`);
   }
 
   const fiveHourLine = fmtPctLine("5-hour window", parsed?.fiveHour);
-  if (fiveHourLine) lines.push(fiveHourLine);
-
   const weekLine = fmtPctLine("Current week", parsed?.week);
-  if (weekLine) lines.push(weekLine);
+  if (fiveHourLine || weekLine) {
+    lines.push("", "Subscription Windows");
+    if (fiveHourLine) lines.push(fiveHourLine);
+    if (weekLine) lines.push(weekLine);
+  }
 
   if (parsed?.api) {
     const a = parsed.api;
@@ -281,7 +325,8 @@ export function formatUsage(parsed) {
       if (a.pctRemaining != null) apiParts.push(`${a.pctRemaining}% remaining`);
     }
     if (apiParts.length) {
-      let s = `• API budget: ${apiParts.join(" · ")}`;
+      lines.push("", "API Budget");
+      let s = `• ${apiParts.join(" · ")}`;
       if (a.resetText) {
         s += `\n  ↳ reset: ${a.resetText}`;
         if (a.resetIn) s += ` (in ${a.resetIn})`;
@@ -292,8 +337,9 @@ export function formatUsage(parsed) {
 
   const ex = parsed?.extra;
   if (ex) {
+    lines.push("", "Extra Usage");
     if (ex.status === "not enabled") {
-      lines.push("• Extra usage: not enabled");
+      lines.push("• not enabled");
     } else if (ex.status === "enabled" || ex.status === "exhausted" || ex.pctUsed != null || (ex.spentUsd != null && ex.limitUsd != null)) {
       const chunks = [];
       if (ex.spentUsd != null && ex.limitUsd != null) {
@@ -305,8 +351,9 @@ export function formatUsage(parsed) {
         if (ex.pctRemaining != null) chunks.push(`${ex.pctRemaining}% available`);
       }
 
-      let head = "• Extra usage";
-      if (ex.status === "exhausted") head += " (exhausted)";
+      let head = "•";
+      if (ex.status === "exhausted") head += " exhausted";
+      else head += " enabled";
       if (chunks.length) head += `: ${chunks.join(" · ")}`;
       lines.push(head);
 
@@ -316,13 +363,16 @@ export function formatUsage(parsed) {
         lines.push(resetLine);
       }
     } else {
-      lines.push("• Extra usage: unknown");
+      lines.push("• unknown");
     }
   }
 
-  if (lines.length <= 2) {
+  lines.push("", `Action: ${status.hint}`);
+
+  const rendered = lines.join("\n").trim();
+  if (!rendered || rendered.length < 24) {
     return "Anthrometer: unable to parse usage output. Try /anthrometer raw.";
   }
 
-  return lines.join("\n");
+  return rendered;
 }
