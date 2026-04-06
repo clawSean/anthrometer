@@ -299,18 +299,22 @@ function computeStatus(parsed) {
 
 export function formatUsage(parsed) {
   const status = computeStatus(parsed);
-  const lines = [`📊 Anthropic Usage — ${status.emoji} ${status.label}`, ""];
+  const lines = [`📊 Anthropic Usage  ${status.emoji} ${status.label}`, ""]; 
 
   if (parsed?.mode && parsed.mode !== "unknown") {
-    lines.push("Summary", `• Mode: ${parsed.mode}`);
+    lines.push("━━ Summary ━━", `Mode: ${parsed.mode}`, "");
   }
 
   const fiveHourLine = fmtPctLine("5-hour window", parsed?.fiveHour);
   const weekLine = fmtPctLine("Current week", parsed?.week);
   if (fiveHourLine || weekLine) {
-    lines.push("", "Subscription Windows");
-    if (fiveHourLine) lines.push(fiveHourLine);
-    if (weekLine) lines.push(weekLine);
+    lines.push("━━ Subscription Windows ━━");
+    if (fiveHourLine) {
+      lines.push(fiveHourLine, "");
+    }
+    if (weekLine) {
+      lines.push(weekLine, "");
+    }
   }
 
   if (parsed?.api) {
@@ -325,21 +329,21 @@ export function formatUsage(parsed) {
       if (a.pctRemaining != null) apiParts.push(`${a.pctRemaining}% remaining`);
     }
     if (apiParts.length) {
-      lines.push("", "API Budget");
-      let s = `• ${apiParts.join(" · ")}`;
+      lines.push("━━ API Budget ━━");
+      let s = `${apiParts.join(" · ")}`;
       if (a.resetText) {
-        s += `\n  ↳ reset: ${a.resetText}`;
+        s += `\nreset: ${a.resetText}`;
         if (a.resetIn) s += ` (in ${a.resetIn})`;
       }
-      lines.push(s);
+      lines.push(s, "");
     }
   }
 
   const ex = parsed?.extra;
   if (ex) {
-    lines.push("", "Extra Usage");
+    lines.push("━━ Extra Usage ━━");
     if (ex.status === "not enabled") {
-      lines.push("• not enabled");
+      lines.push("not enabled", "");
     } else if (ex.status === "enabled" || ex.status === "exhausted" || ex.pctUsed != null || (ex.spentUsd != null && ex.limitUsd != null)) {
       const chunks = [];
       if (ex.spentUsd != null && ex.limitUsd != null) {
@@ -351,23 +355,22 @@ export function formatUsage(parsed) {
         if (ex.pctRemaining != null) chunks.push(`${ex.pctRemaining}% available`);
       }
 
-      let head = "•";
-      if (ex.status === "exhausted") head += " exhausted";
-      else head += " enabled";
+      let head = ex.status === "exhausted" ? "exhausted" : "enabled";
       if (chunks.length) head += `: ${chunks.join(" · ")}`;
       lines.push(head);
 
       if (ex.resetText) {
-        let resetLine = `  ↳ reset: ${ex.resetText}`;
+        let resetLine = `reset: ${ex.resetText}`;
         if (ex.resetIn) resetLine += ` (in ${ex.resetIn})`;
         lines.push(resetLine);
       }
+      lines.push("");
     } else {
-      lines.push("• unknown");
+      lines.push("unknown", "");
     }
   }
 
-  lines.push("", `Action: ${status.hint}`);
+  lines.push(`✅ Action: ${status.hint}`);
 
   const rendered = lines.join("\n").trim();
   if (!rendered || rendered.length < 24) {
