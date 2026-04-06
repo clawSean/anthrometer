@@ -80,8 +80,10 @@ test('parseUsage reads API month usage when present', () => {
 
 test('formatUsage emits clear remaining usage lines', () => {
   const out = formatUsage(parseUsage(subscriptionSample, fixedNow));
-  assert.match(out, /5-hour window: 0% used \(100% remaining\)/);
-  assert.match(out, /Current week: 68% used \(32% remaining\)/);
-  assert.match(out, /Extra Usage[\s\S]*enabled: \$5\.75 \/ \$5\.00 spent · \$0\.00 available · over by \$0\.75/);
-  assert.match(out, /reset:/i);
+  assert.match(out, /Anthrometer/);
+  assert.match(out, /5h Window:[\s\S]*0% \(100% left\)/);
+  assert.match(out, /Week:[\s\S]*68% \(32% left\)/);
+  assert.match(out, /Extra Usage[\s\S]*Spent: \$5\.75 \/ \$5\.00/);
+  assert.match(out, /Over cap by: \$0\.75/);
+  assert.match(out, /Reset:/i);
 });

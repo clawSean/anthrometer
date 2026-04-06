@@ -245,15 +245,28 @@ export function parseUsage(raw = "", now = new Date()) {
   };
 }
 
-function fmtPctLine(label, section) {
+function progressBar(pct, width = 10) {
+  if (typeof pct !== "number" || Number.isNaN(pct)) return "";
+  const clamped = Math.max(0, Math.min(100, Math.round(pct)));
+  const filled = Math.round((clamped / 100) * width);
+  return "█".repeat(filled) + "░".repeat(Math.max(0, width - filled));
+}
+
+function fmtWindowBlock(title, section, emoji = "•") {
   if (!section || section.pctUsed == null) return null;
-  let s = `• ${label}: ${section.pctUsed}% used`;
-  if (section.pctRemaining != null) s += ` (${section.pctRemaining}% remaining)`;
+  const pct = section.pctUsed;
+  const rem = section.pctRemaining;
+  const bar = progressBar(pct, 10);
+
+  const lines = [
+    `${emoji} ${title}: ${bar} ${pct}%${rem != null ? ` (${rem}% left)` : ""}`,
+  ];
+
   if (section.resetText) {
-    s += `\n  ↳ reset: ${section.resetText}`;
-    if (section.resetIn) s += ` (in ${section.resetIn})`;
+    lines.push(`   Reset: ${section.resetText}${section.resetIn ? ` (in ${section.resetIn})` : ""}`);
   }
-  return s;
+
+  return lines.join("\n");
 }
 
 function computeStatus(parsed) {
@@ -299,75 +312,61 @@ function computeStatus(parsed) {
 
 export function formatUsage(parsed) {
   const status = computeStatus(parsed);
-  const lines = [`📊 Anthropic Usage — ${status.emoji} ${status.label}`, ""];
+  const lines = [`📊 Anthrometer — ${status.emoji} ${status.label}`];
 
   if (parsed?.mode && parsed.mode !== "unknown") {
-    lines.push("Summary", `• Mode: ${parsed.mode}`);
+    lines.push(`Mode: ${parsed.mode}`);
   }
 
-  const fiveHourLine = fmtPctLine("5-hour window", parsed?.fiveHour);
-  const weekLine = fmtPctLine("Current week", parsed?.week);
+  const fiveHourLine = fmtWindowBlock("5h Window", parsed?.fiveHour, "⚡");
+  const weekLine = fmtWindowBlock("Week", parsed?.week, "📆");
   if (fiveHourLine || weekLine) {
-    lines.push("", "Subscription Windows");
+    lines.push("", "Subscription");
     if (fiveHourLine) lines.push(fiveHourLine);
     if (weekLine) lines.push(weekLine);
   }
 
   if (parsed?.api) {
     const a = parsed.api;
-    const apiParts = [];
+    lines.push("", "🧾 API Budget");
+
     if (a.spentUsd != null && a.limitUsd != null) {
-      apiParts.push(`$${a.spentUsd.toFixed(2)} / $${a.limitUsd.toFixed(2)} spent`);
-      if (a.remainingUsd != null) apiParts.push(`$${a.remainingUsd.toFixed(2)} remaining`);
+      lines.push(`• Spent: $${a.spentUsd.toFixed(2)} / $${a.limitUsd.toFixed(2)}`);
+      if (a.remainingUsd != null) lines.push(`• Remaining: $${a.remainingUsd.toFixed(2)}`);
     }
     if (a.pctUsed != null) {
-      apiParts.push(`${a.pctUsed}% used`);
-      if (a.pctRemaining != null) apiParts.push(`${a.pctRemaining}% remaining`);
+      lines.push(`• Usage: ${progressBar(a.pctUsed, 10)} ${a.pctUsed}%${a.pctRemaining != null ? ` (${a.pctRemaining}% left)` : ""}`);
     }
-    if (apiParts.length) {
-      lines.push("", "API Budget");
-      let s = `• ${apiParts.join(" · ")}`;
-      if (a.resetText) {
-        s += `\n  ↳ reset: ${a.resetText}`;
-        if (a.resetIn) s += ` (in ${a.resetIn})`;
-      }
-      lines.push(s);
+    if (a.resetText) {
+      lines.push(`• Reset: ${a.resetText}${a.resetIn ? ` (in ${a.resetIn})` : ""}`);
     }
   }
 
   const ex = parsed?.extra;
   if (ex) {
-    lines.push("", "Extra Usage");
+    lines.push("", "💸 Extra Usage");
     if (ex.status === "not enabled") {
-      lines.push("• not enabled");
+      lines.push("• Not enabled");
     } else if (ex.status === "enabled" || ex.status === "exhausted" || ex.pctUsed != null || (ex.spentUsd != null && ex.limitUsd != null)) {
-      const chunks = [];
-      if (ex.spentUsd != null && ex.limitUsd != null) {
-        chunks.push(`$${ex.spentUsd.toFixed(2)} / $${ex.limitUsd.toFixed(2)} spent`);
-        if (ex.availableUsd != null) chunks.push(`$${ex.availableUsd.toFixed(2)} available`);
-        if (ex.overUsd && ex.overUsd > 0) chunks.push(`over by $${ex.overUsd.toFixed(2)}`);
-      } else if (ex.pctUsed != null) {
-        chunks.push(`${ex.pctUsed}% used`);
-        if (ex.pctRemaining != null) chunks.push(`${ex.pctRemaining}% available`);
-      }
+      lines.push(`• Status: ${ex.status || "enabled"}`);
 
-      let head = "•";
-      if (ex.status === "exhausted") head += " exhausted";
-      else head += " enabled";
-      if (chunks.length) head += `: ${chunks.join(" · ")}`;
-      lines.push(head);
+      if (ex.spentUsd != null && ex.limitUsd != null) {
+        lines.push(`• Spent: $${ex.spentUsd.toFixed(2)} / $${ex.limitUsd.toFixed(2)}`);
+        if (ex.availableUsd != null) lines.push(`• Available: $${ex.availableUsd.toFixed(2)}`);
+        if (ex.overUsd != null && ex.overUsd > 0) lines.push(`• Over cap by: $${ex.overUsd.toFixed(2)}`);
+      } else if (ex.pctUsed != null) {
+        lines.push(`• Usage: ${progressBar(ex.pctUsed, 10)} ${ex.pctUsed}%${ex.pctRemaining != null ? ` (${ex.pctRemaining}% available)` : ""}`);
+      }
 
       if (ex.resetText) {
-        let resetLine = `  ↳ reset: ${ex.resetText}`;
-        if (ex.resetIn) resetLine += ` (in ${ex.resetIn})`;
-        lines.push(resetLine);
+        lines.push(`• Reset: ${ex.resetText}${ex.resetIn ? ` (in ${ex.resetIn})` : ""}`);
       }
     } else {
-      lines.push("• unknown");
+      lines.push("• Unknown");
     }
   }
 
-  lines.push("", `Action: ${status.hint}`);
+  lines.push("", `➡️ ${status.hint}`);
 
   const rendered = lines.join("\n").trim();
   if (!rendered || rendered.length < 24) {
