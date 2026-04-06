@@ -82,6 +82,6 @@ test('formatUsage emits clear remaining usage lines', () => {
   const out = formatUsage(parseUsage(subscriptionSample, fixedNow));
   assert.match(out, /5-hour window: 0% used \(100% remaining\)/);
   assert.match(out, /Current week: 68% used \(32% remaining\)/);
-  assert.match(out, /Extra usage: \$5\.75 \/ \$5\.00 spent · \$0\.00 available · over by \$0\.75/);
+  assert.match(out, /Extra Usage[\s\S]*enabled: \$5\.75 \/ \$5\.00 spent · \$0\.00 available · over by \$0\.75/);
   assert.match(out, /reset:/i);
 });
