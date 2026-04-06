@@ -14,18 +14,53 @@ function q(s: string) {
   return `'${String(s).replace(/'/g, `'\\''`)}'`;
 }
 
+function looksLikeUsageOutput(raw: string): boolean {
+  const t = String(raw || "");
+  return /(Current\s+session|Current\s+5[ -]?hour|Current\s+week|Extra\s+usage|Current\s+month|API\s+budget|\b\d+%\s*used\b)/i.test(t);
+}
+
 function fetchUsageRaw(sessionName: string, timeoutMs: number, claudeCommand: string): string {
-  const cmd = [
-    `tmux has-session -t ${q(sessionName)} 2>/dev/null || tmux new-session -d -s ${q(sessionName)} -x 120 -y 40 ${q(claudeCommand)}`, 
+  const setup = [
+    `tmux has-session -t ${q(sessionName)} 2>/dev/null || tmux new-session -d -s ${q(sessionName)} -x 120 -y 40 ${q(claudeCommand)}`,
     `sleep 1`,
     `tmux send-keys -t ${q(sessionName)} C-c`,
     `tmux send-keys -t ${q(sessionName)} C-l`,
-    `tmux send-keys -t ${q(sessionName)} '/usage' Enter`,
-    `sleep 2`,
-    `tmux capture-pane -t ${q(sessionName)} -p | tail -200`,
-  ].join(" && ");
+  ].join("; ");
 
-  return sh(`bash -lc ${q(cmd)}`, timeoutMs);
+  const attempts = [
+    // Most reliable for Claude Code UI: type slash command, then confirm twice.
+    [
+      `tmux send-keys -t ${q(sessionName)} '/usage'`,
+      `sleep 0.6`,
+      `tmux send-keys -t ${q(sessionName)} Enter`,
+      `sleep 0.8`,
+      `tmux send-keys -t ${q(sessionName)} Enter`,
+      `sleep 2.5`,
+      `tmux capture-pane -t ${q(sessionName)} -p | tail -260`,
+    ].join("; "),
+
+    // Fallback: direct submit then one extra Enter.
+    [
+      `tmux send-keys -t ${q(sessionName)} '/usage' Enter`,
+      `sleep 1.0`,
+      `tmux send-keys -t ${q(sessionName)} Enter`,
+      `sleep 2.5`,
+      `tmux capture-pane -t ${q(sessionName)} -p | tail -260`,
+    ].join("; "),
+  ];
+
+  let last = "";
+  for (const step of attempts) {
+    try {
+      const raw = sh(`bash -lc ${q(`${setup}; ${step}`)}`, timeoutMs);
+      last = raw;
+      if (looksLikeUsageOutput(raw)) return raw;
+    } catch (err: any) {
+      last = err?.message || String(err);
+    }
+  }
+
+  return last;
 }
 
 export default function register(api: any) {
@@ -43,26 +78,18 @@ export default function register(api: any) {
       return { text: formatUsage(parsed) };
     } catch (err: any) {
       return {
-        text: `Anthrometer failed.\n${err?.message || String(err)}\nHint: run 'claude' once and login, then retry /anthropic_usage.`,
+        text: `Anthrometer failed.\n${err?.message || String(err)}\nHint: run 'claude' once and login, then retry /anthrometer.`,
       };
     }
   };
 
   api.registerCommand({
-    name: "anthropic_usage",
+    name: "anthrometer",
     description: "Show Claude usage meters (no LLM inference)",
     acceptsArgs: true,
     requireAuth: true,
     handler,
   });
 
-  api.registerCommand({
-    name: "claude_usage",
-    description: "Alias for /anthropic_usage",
-    acceptsArgs: true,
-    requireAuth: true,
-    handler,
-  });
-
-  api.logger?.info?.("[anthrometer] Loaded: /anthropic_usage and /claude_usage");
+  api.logger?.info?.("[anthrometer] Loaded: /anthrometer");
 }

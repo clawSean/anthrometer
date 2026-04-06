@@ -321,7 +321,7 @@ export function formatUsage(parsed) {
   }
 
   if (lines.length <= 2) {
-    return "Anthrometer: unable to parse usage output. Try /anthropic_usage raw.";
+    return "Anthrometer: unable to parse usage output. Try /anthrometer raw.";
   }
 
   return lines.join("\n");
