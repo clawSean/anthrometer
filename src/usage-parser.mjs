@@ -327,19 +327,19 @@ function computeStatus(parsed) {
 export function formatUsage(parsed) {
   const status = computeStatus(parsed);
   const modeSuffix = parsed?.mode && parsed.mode !== "unknown" ? ` · ${parsed.mode}` : "";
-  const lines = [`*📊 Anthrometer* — ${status.emoji} ${status.label}${modeSuffix}`];
+  const lines = [`📊 𝗔𝗻𝘁𝗵𝗿𝗼𝗺𝗲𝘁𝗲𝗿${modeSuffix}`];
 
   const fiveHourLine = fmtWindowBlock("5h", parsed?.fiveHour, "⚡");
   const weekLine = fmtWindowBlock("Week", parsed?.week, "📆");
   if (fiveHourLine || weekLine) {
-    lines.push("", "*📅 Subscription*");
+    lines.push("", "📅 𝗦𝘂𝗯𝘀𝗰𝗿𝗶𝗽𝘁𝗶𝗼𝗻");
     if (fiveHourLine) lines.push(fiveHourLine);
     if (weekLine) lines.push(weekLine);
   }
 
   if (parsed?.api) {
     const a = parsed.api;
-    lines.push("", "*🧾 API Budget*");
+    lines.push("", "🧾 𝗔𝗣𝗜 𝗕𝘂𝗱𝗴𝗲𝘁");
 
     if (a.pctUsed != null) {
       lines.push(`• Meter: ${progressBar(a.pctUsed, 10)}  ${a.pctUsed}% used${a.pctRemaining != null ? ` · ${a.pctRemaining}% left` : ""}`);
@@ -358,7 +358,7 @@ export function formatUsage(parsed) {
   const ex = parsed?.extra;
   if (ex) {
     const exStatus = ex.status || "enabled";
-    lines.push("", `*💸 Extra Usage*${exStatus ? ` — ${exStatus}` : ""}`);
+    lines.push("", `💸 𝗘𝘅𝘁𝗿𝗮 𝗨𝘀𝗮𝗴𝗲${exStatus ? ` — ${exStatus}` : ""}`);
 
     if (ex.status === "not enabled") {
       lines.push("• Not enabled");
