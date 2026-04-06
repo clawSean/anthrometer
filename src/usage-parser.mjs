@@ -245,13 +245,6 @@ export function parseUsage(raw = "", now = new Date()) {
   };
 }
 
-function barFillGlyph(pct) {
-  if (pct >= 85) return "🟥";
-  if (pct >= 65) return "🟧";
-  if (pct >= 35) return "🟨";
-  return "🟩";
-}
-
 function progressBar(pct, width = 10) {
   if (typeof pct !== "number" || Number.isNaN(pct)) return "";
   const n = Math.max(0, Number(pct));
@@ -259,8 +252,7 @@ function progressBar(pct, width = 10) {
   const raw = (capped / 100) * width;
   let filled = Math.floor(raw);
   if (capped > 0 && filled === 0) filled = 1;
-  const fill = barFillGlyph(n);
-  return fill.repeat(filled) + "⬜".repeat(Math.max(0, width - filled));
+  return "█".repeat(filled) + "░".repeat(Math.max(0, width - filled));
 }
 
 function fmtWindowBlock(title, section, emoji = "•") {
@@ -335,19 +327,19 @@ function computeStatus(parsed) {
 export function formatUsage(parsed) {
   const status = computeStatus(parsed);
   const modeSuffix = parsed?.mode && parsed.mode !== "unknown" ? ` · ${parsed.mode}` : "";
-  const lines = [`📊 Anthrometer — ${status.emoji} ${status.label}${modeSuffix}`];
+  const lines = [`*📊 Anthrometer* — ${status.emoji} ${status.label}${modeSuffix}`];
 
   const fiveHourLine = fmtWindowBlock("5h", parsed?.fiveHour, "⚡");
   const weekLine = fmtWindowBlock("Week", parsed?.week, "📆");
   if (fiveHourLine || weekLine) {
-    lines.push("", "📅 Subscription");
+    lines.push("", "*📅 Subscription*");
     if (fiveHourLine) lines.push(fiveHourLine);
     if (weekLine) lines.push(weekLine);
   }
 
   if (parsed?.api) {
     const a = parsed.api;
-    lines.push("", "🧾 API Budget");
+    lines.push("", "*🧾 API Budget*");
 
     if (a.pctUsed != null) {
       lines.push(`• Meter: ${progressBar(a.pctUsed, 10)}  ${a.pctUsed}% used${a.pctRemaining != null ? ` · ${a.pctRemaining}% left` : ""}`);
@@ -366,7 +358,7 @@ export function formatUsage(parsed) {
   const ex = parsed?.extra;
   if (ex) {
     const exStatus = ex.status || "enabled";
-    lines.push("", `💸 Extra Usage${exStatus ? ` — ${exStatus}` : ""}`);
+    lines.push("", `*💸 Extra Usage*${exStatus ? ` — ${exStatus}` : ""}`);
 
     if (ex.status === "not enabled") {
       lines.push("• Not enabled");
