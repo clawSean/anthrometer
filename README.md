@@ -5,11 +5,12 @@ No-LLM Anthropic usage meter plugin for OpenClaw.
 ## Commands
 - `/anthrometer`
 - add `raw` argument for diagnostics: `/anthrometer raw`
+- add `json` argument for structured parsed output: `/anthrometer json`
 
 ## Behavior
 Anthrometer drives `claude` CLI in a tmux session, runs `/usage`, parses meter output, and returns factual usage lines without invoking LLM inference.
 
-It now supports both **subscription** and **API-style** usage layouts when present in Claude usage output.
+It now supports both **subscription** and **API-style** usage layouts when present in Claude usage output. The runner is resilient to Claude boot delays, stale input, and first-run trust prompts, and it retries once with a fresh tmux session if the REPL is not ready.
 
 ### Reported fields
 - **5-hour window**: used %, remaining %, reset time, and countdown (`in Xh Ym`)
