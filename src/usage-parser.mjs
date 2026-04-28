@@ -100,19 +100,30 @@ export function formatDuration(ms) {
   return parts.join(" ");
 }
 
-function sectionSlice(lines, startIndex, maxLookahead = 12) {
-  return lines.slice(startIndex, Math.min(lines.length, startIndex + maxLookahead));
-}
+// Matches any top-level section heading so we can stop parsing at section boundaries.
+const SECTION_HEADING_RE = /^(?:Current\s+(?:session|5[\s-]?hour(?:\s+window)?|5h(?:\s+window)?|week|month)|Extra\s+usage|API\s+usage)/i;
 
 function findHeadingIndex(lines, regex) {
   return lines.findIndex((line) => regex.test(line.trim()));
+}
+
+/**
+ * Returns the line index where the next section heading starts after startIndex,
+ * or lines.length if none is found. Used to prevent cross-section data bleed.
+ */
+function sectionEnd(lines, startIndex) {
+  for (let i = startIndex + 1; i < lines.length; i++) {
+    if (SECTION_HEADING_RE.test(lines[i].trim())) return i;
+  }
+  return lines.length;
 }
 
 function parseWindowSection(lines, headingRegex, now = new Date()) {
   const idx = findHeadingIndex(lines, headingRegex);
   if (idx < 0) return null;
 
-  const chunk = sectionSlice(lines, idx, 14).join("\n");
+  const end = sectionEnd(lines, idx);
+  const chunk = lines.slice(idx, end).join("\n");
   const pct = chunk.match(/(\d+)\s*%\s*used/i)?.[1] ?? null;
   const resetText = chunk.match(/Resets\s+([^\n]+)/i)?.[1]?.trim() ?? null;
   const resetAt = parseResetTime(resetText, now);
@@ -145,7 +156,8 @@ function parseExtraSection(lines, now = new Date()) {
     };
   }
 
-  const chunk = sectionSlice(lines, idx, 16).join("\n");
+  const end = sectionEnd(lines, idx);
+  const chunk = lines.slice(idx, end).join("\n");
   const pct = chunk.match(/(\d+)\s*%\s*used/i)?.[1] ?? null;
 
   let status = "unknown";
@@ -325,6 +337,21 @@ function computeStatus(parsed) {
 }
 
 export function formatUsage(parsed) {
+  const hasUsageData = Boolean(
+    parsed?.fiveHour?.pctUsed != null
+    || parsed?.week?.pctUsed != null
+    || parsed?.api
+    || parsed?.extra?.status === "enabled"
+    || parsed?.extra?.status === "exhausted"
+    || parsed?.extra?.status === "not enabled"
+    || parsed?.extra?.pctUsed != null
+    || parsed?.extra?.spentUsd != null
+  );
+
+  if (!hasUsageData) {
+    return "Anthrometer: unable to parse usage output. Try /anthrometer raw.";
+  }
+
   const status = computeStatus(parsed);
   const modeSuffix = parsed?.mode && parsed.mode !== "unknown" ? ` · ${parsed.mode}` : "";
   const lines = [`📊 𝗔𝗻𝘁𝗵𝗿𝗼𝗺𝗲𝘁𝗲𝗿${modeSuffix}`];
