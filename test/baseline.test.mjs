@@ -102,6 +102,12 @@ test('register() tolerates missing getConfig and logger', async () => {
 // The handler calls fetchUsageRaw which needs tmux — we can't run it offline.
 // But we can verify the error path returns a user-friendly message.
 
+test('paneHasReplPrompt detects Claude prompt with placeholder text', async () => {
+  const mod = await import('../src/index.ts');
+  assert.equal(mod.paneHasReplPrompt('────────────────\n❯ Try "write a test for <filepath>"\n────────────────'), true);
+  assert.equal(mod.paneHasReplPrompt('Welcome back\nno prompt here'), false);
+});
+
 test('handler returns friendly error when tmux/claude unavailable', async () => {
   const mod = await import('../src/index.ts');
   const register = mod.default;
@@ -117,6 +123,26 @@ test('handler returns friendly error when tmux/claude unavailable', async () => 
   assert.equal(typeof result.text, 'string');
   assert.match(result.text, /Anthrometer failed/i);
   assert.match(result.text, /hint/i);
+});
+
+test('handler respects timeoutMs config — does not hang beyond configured limit', async () => {
+  const mod = await import('../src/index.ts');
+  const register = mod.default;
+
+  let handler;
+  const fakeApi = {
+    getConfig: () => ({ tmuxSession: 'anthrometer_timeout_test', timeoutMs: 4000 }),
+    registerCommand: (cmd) => { handler = cmd.handler; },
+  };
+  register(fakeApi);
+
+  const start = Date.now();
+  await handler({ args: '' });
+  const elapsed = Date.now() - start;
+
+  // With timeoutMs=4000, total should finish well under 2× the timeout.
+  // Before the fix, this would take ~36s (2 × 18s hardcoded maxWaitMs).
+  assert.ok(elapsed < 12000, `Handler took ${elapsed}ms — should respect timeoutMs and finish under 12s`);
 });
 
 // ── Parser edge cases ───────────────────────────────────────────────────────

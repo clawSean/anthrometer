@@ -34,9 +34,9 @@ function paneHasTrustPrompt(pane: string): boolean {
   return /trust this folder/i.test(pane) || /Yes, I trust/i.test(pane);
 }
 
-function paneHasReplPrompt(pane: string): boolean {
+export function paneHasReplPrompt(pane: string): boolean {
   const clean = stripAnsi(pane);
-  return clean.split("\n").some((line: string) => /^\s*❯\s*$/.test(line));
+  return clean.split("\n").some((line: string) => /^\s*❯(?:\s|\u00a0|$)/.test(line));
 }
 
 async function sessionExists(sessionName: string): Promise<boolean> {
@@ -130,9 +130,11 @@ async function resetReplInput(sessionName: string): Promise<void> {
 
 async function fetchUsageRaw(sessionName: string, timeoutMs: number, claudeCommand: string): Promise<string> {
   let lastReadyError = "";
+  // Cap per-attempt wait to slightly less than the overall timeout to leave room for the steps.
+  const maxWaitMs = Math.max(3000, Math.floor(timeoutMs * 0.8));
 
   for (let attempt = 0; attempt < 2; attempt++) {
-    const ready = await ensureSessionReady(sessionName, claudeCommand);
+    const ready = await ensureSessionReady(sessionName, claudeCommand, maxWaitMs);
     if (!ready.ready) {
       lastReadyError = ready.error || "Claude REPL was not ready";
       if (attempt === 0) { await killSession(sessionName); continue; }
