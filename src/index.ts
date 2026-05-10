@@ -15,6 +15,10 @@ function sh(cmd: string, timeoutMs = 20000): Promise<string> {
   });
 }
 
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function q(s: string) {
   return `'${String(s).replace(/'/g, `'\\''`)}'`;
 }
@@ -36,7 +40,8 @@ function paneHasTrustPrompt(pane: string): boolean {
 
 export function paneHasReplPrompt(pane: string): boolean {
   const clean = stripAnsi(pane);
-  return clean.split("\n").some((line: string) => /^\s*❯(?:\s|\u00a0|$)/.test(line));
+  // Match primary prompt ❯ (U+276F) and fallback › (U+203A) used in some terminal configs.
+  return clean.split("\n").some((line: string) => /^\s*[❯›](?:\s|\u00a0|$)/.test(line));
 }
 
 async function sessionExists(sessionName: string): Promise<boolean> {
@@ -97,13 +102,13 @@ async function ensureSessionReady(
         };
       }
       try { await sh(`tmux send-keys -t ${q(sessionName)} Enter`, 3000); } catch {}
-      try { await sh("sleep 3", 5000); } catch {}
+      await delay(3000);
       continue;
     }
 
     if (paneHasReplPrompt(lastPane)) return { ready: true };
 
-    try { await sh("sleep 1.5", 3000); } catch {}
+    await delay(1200);
   }
 
   return {
@@ -130,8 +135,8 @@ async function resetReplInput(sessionName: string): Promise<void> {
 
 async function fetchUsageRaw(sessionName: string, timeoutMs: number, claudeCommand: string): Promise<string> {
   let lastReadyError = "";
-  // Cap per-attempt wait to slightly less than the overall timeout to leave room for the steps.
-  const maxWaitMs = Math.max(3000, Math.floor(timeoutMs * 0.8));
+  // Cap per-attempt wait to leave room for the /usage send+capture steps afterward.
+  const maxWaitMs = Math.max(3000, Math.floor(timeoutMs * 0.9));
 
   for (let attempt = 0; attempt < 2; attempt++) {
     const ready = await ensureSessionReady(sessionName, claudeCommand, maxWaitMs);

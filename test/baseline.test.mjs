@@ -108,6 +108,18 @@ test('paneHasReplPrompt detects Claude prompt with placeholder text', async () =
   assert.equal(mod.paneHasReplPrompt('Welcome back\nno prompt here'), false);
 });
 
+test('paneHasReplPrompt detects fallback prompt character ›', async () => {
+  const mod = await import('../src/index.ts');
+  // U+203A single right-pointing angle quotation mark (degraded terminal fallback)
+  assert.equal(mod.paneHasReplPrompt('some header\n› '), true);
+  // Must be at start of line (with optional whitespace)
+  assert.equal(mod.paneHasReplPrompt('some header\n  › '), true);
+  // ASCII > is NOT matched (too common in shell output / continuation prompts)
+  assert.equal(mod.paneHasReplPrompt('some header\n> '), false);
+  // Not mid-line
+  assert.equal(mod.paneHasReplPrompt('some text › more'), false);
+});
+
 test('handler returns friendly error when tmux/claude unavailable', async () => {
   const mod = await import('../src/index.ts');
   const register = mod.default;
