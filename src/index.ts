@@ -192,7 +192,7 @@ async function fetchUsageRaw(sessionName: string, timeoutMs: number, claudeComma
 export default function register(api: any) {
   const cfg = api.getConfig?.() || {};
   const tmuxSession = cfg.tmuxSession || "claude_usage_cmd";
-  const timeoutMs = typeof cfg.timeoutMs === "number" ? cfg.timeoutMs : 45000;
+  const timeoutMs = typeof cfg.timeoutMs === "number" ? cfg.timeoutMs : 120000;
   const claudeCommand = cfg.claudeCommand || "claude";
 
   const handler = async (ctx: any) => {

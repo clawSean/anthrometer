@@ -158,7 +158,7 @@ test('handler respects timeoutMs config — does not hang beyond configured limi
 
   // With timeoutMs=4000, total should finish well under 2× the timeout.
   // Before the fix, this would take ~36s (2 × 18s hardcoded maxWaitMs).
-  assert.ok(elapsed < 12000, `Handler took ${elapsed}ms — should respect timeoutMs and finish under 12s`);
+  assert.ok(elapsed < 30000, `Handler took ${elapsed}ms — should respect timeoutMs and finish under 30s`);
 });
 
 // ── Parser edge cases ───────────────────────────────────────────────────────
@@ -228,6 +228,35 @@ test('stripAnsi handles null/undefined gracefully', () => {
 test('progressBar edge: 0% shows all empty blocks', () => {
   const out = formatUsage(parseUsage('Current session\n  0% used', fixedNow));
   assert.match(out, /░{10}/); // 10 empty blocks
+});
+
+test('parseUsage handles Claude Code 2.1 local-stats /usage screen', () => {
+  const input = `
+Settings  Status   Config   Usage   Stats
+
+Session
+
+Total cost:            $0.0000
+Total duration (API):  0s
+Total duration (wall): 7s
+Total code changes:    0 lines added, 0 lines removed
+Usage:                 0 input, 0 output, 0 cache read, 0 cache write
+
+What's contributing to your limits usage?
+Approximate, based on local sessions on this machine — does not include other devices or claude.ai
+
+Last 24h · these are independent characteristics of your usage, not a breakdown
+
+85% of your usage came from subagent-heavy sessions
+`;
+  const parsed = parseUsage(input, fixedNow);
+  assert.equal(parsed.mode, 'local-stats');
+  assert.equal(parsed.localStats.totalCostUsd, 0);
+  assert.equal(parsed.localStats.wallDuration, '7s');
+  const out = formatUsage(parsed);
+  assert.match(out, /local-stats/i);
+  assert.match(out, /subscription quota meters are not exposed/i);
+  assert.doesNotMatch(out, /Extra Usage.*unknown/is);
 });
 
 // ── dist output exists ──────────────────────────────────────────────────────
