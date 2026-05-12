@@ -22,6 +22,6 @@
 - Reproduce the display path, then adjust the readiness/timeout logic only if it is actually the blocker.
 
 ## Status
-- Iteration: 0/3
-- State: active
+- Iteration: 3/3
+- State: done
 - Blocker: none
