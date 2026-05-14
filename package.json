@@ -7,10 +7,18 @@
   "openclaw": {
     "extensions": [
       "./src/index.ts"
+    ],
+    "runtimeExtensions": [
+      "./dist/index.js"
     ]
   },
   "scripts": {
-    "test": "node --test"
+    "build": "tsc",
+    "test": "node --test",
+    "prepare": "npm run build"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.0"
   },
   "engines": {
     "node": ">=20"

@@ -78,6 +78,28 @@ test('parseUsage reads API month usage when present', () => {
   assert.equal(p.api.remainingUsd, 37.6);
 });
 
+// Phase 1 regression: 5h section with no local Resets line must not borrow the week reset.
+const no5hResetSample = `
+Status Config Usage
+Current session
+                                                     0% used
+
+Current week (all models)
+██████████████████████████████████                   68% used
+Resets Apr 10, 3pm (UTC)
+`;
+
+test('parser boundary: 5h section without Resets does not borrow week reset', () => {
+  const p = parseUsage(no5hResetSample, fixedNow);
+
+  assert.equal(p.fiveHour.pctUsed, 0);
+  assert.equal(p.fiveHour.resetText, null, '5h should have no resetText when its section lacks a Resets line');
+  assert.equal(p.fiveHour.resetAtIso, null);
+
+  assert.equal(p.week.pctUsed, 68);
+  assert.equal(p.week.resetText, 'Apr 10, 3pm (UTC)', 'week reset should be unaffected');
+});
+
 test('formatUsage emits clear remaining usage lines', () => {
   const out = formatUsage(parseUsage(subscriptionSample, fixedNow));
   assert.match(out, /📊[\s\S]*subscription/);
@@ -87,4 +109,10 @@ test('formatUsage emits clear remaining usage lines', () => {
   assert.match(out, /💸[\s\S]*Spend: \$5\.75 \/ \$5\.00 spent/);
   assert.match(out, /over cap by \$0\.75/);
   assert.match(out, /↺ resets/i);
+});
+
+test('formatUsage does not report healthy usage when output is unparsable', () => {
+  const out = formatUsage(parseUsage('', fixedNow));
+  assert.match(out, /unable to parse usage output/i);
+  assert.doesNotMatch(out, /Healthy usage headroom/i);
 });
