@@ -7,9 +7,31 @@
     "type": "object",
     "additionalProperties": false,
     "properties": {
-      "tmuxSession": { "type": "string", "default": "claude_usage_cmd" },
-      "timeoutMs": { "type": "number", "default": 20000 },
-      "claudeCommand": { "type": "string", "default": "claude" }
+      "tmuxSession": {
+        "type": "string",
+        "default": "claude_usage_cmd"
+      },
+      "timeoutMs": {
+        "type": "number",
+        "default": 20000
+      },
+      "claudeCommand": {
+        "type": "string",
+        "default": "claude"
+      },
+      "sdkProbe": {
+        "type": "boolean",
+        "default": false,
+        "description": "Also run a minimal Claude Agent SDK query to capture rate_limit_event overage state."
+      },
+      "sdkProbeTimeoutMs": {
+        "type": "number",
+        "default": 15000
+      },
+      "sdkProbeClaudeExecutable": {
+        "type": "string",
+        "default": "/usr/bin/claude"
+      }
     }
   }
 }

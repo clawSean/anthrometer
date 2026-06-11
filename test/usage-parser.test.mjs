@@ -88,3 +88,48 @@ test('formatUsage emits clear remaining usage lines', () => {
   assert.match(out, /over cap by \$0\.75/);
   assert.match(out, /↺ resets/i);
 });
+
+const sdkRateLimitEventSample = `
+{"type":"rate_limit_event","rateLimitType":"overage","utilization":0.73,"resetsAt":"2026-04-05T07:20:00.000Z","overageStatus":"enabled","overageDisabledReason":null,"isUsingOverage":true,"overageResetsAt":"2026-04-06T05:20:00.000Z"}
+`;
+
+test('parseUsage reads Claude SDK overage rate_limit_event fields', () => {
+  const p = parseUsage(sdkRateLimitEventSample, fixedNow);
+
+  assert.equal(p.rateLimitEvents.length, 1);
+  assert.equal(p.overage.rateLimitType, 'overage');
+  assert.equal(p.overage.overageStatus, 'enabled');
+  assert.equal(p.overage.overageDisabledReason, null);
+  assert.equal(p.overage.isUsingOverage, true);
+  assert.equal(p.overage.utilization, 0.73);
+  assert.equal(p.overage.pctUsed, 73);
+  assert.equal(p.overage.resetsAt, '2026-04-05T07:20:00.000Z');
+  assert.equal(p.overage.resetsAtIso, '2026-04-05T07:20:00.000Z');
+  assert.equal(p.overage.resetsIn, '2h 0m');
+  assert.equal(p.overage.overageResetsAt, '2026-04-06T05:20:00.000Z');
+  assert.equal(p.overage.overageResetsAtIso, '2026-04-06T05:20:00.000Z');
+  assert.equal(p.overage.overageResetsIn, '1d 0h 0m');
+});
+
+test('formatUsage emits Claude SDK overage state', () => {
+  const out = formatUsage(parseUsage(sdkRateLimitEventSample, fixedNow));
+
+  assert.match(out, /🧩[\s\S]*𝗦𝗗𝗞/);
+  assert.match(out, /Overage[\s\S]*enabled/);
+  assert.match(out, /Utilization:[\s\S]*73%/);
+  assert.match(out, /Using overage: yes/);
+  assert.match(out, /limit resets 2026-04-05T07:20:00\.000Z · in 2h 0m/);
+  assert.match(out, /overage resets 2026-04-06T05:20:00\.000Z · in 1d 0h 0m/);
+  assert.match(out, /Claude is using overage capacity/);
+});
+
+test('parseUsage keeps SDK overage disabled reason when present', () => {
+  const raw = '{"type":"rate_limit_event","rateLimitType":"overage","utilization":100,"resetsAt":"2026-04-05T07:20:00.000Z","overageStatus":"disabled","overageDisabledReason":"billing_not_configured","isUsingOverage":false}';
+  const p = parseUsage(raw, fixedNow);
+
+  assert.equal(p.overage.overageStatus, 'disabled');
+  assert.equal(p.overage.overageDisabledReason, 'billing_not_configured');
+  assert.equal(p.overage.isUsingOverage, false);
+  assert.equal(p.overage.pctUsed, 100);
+  assert.match(formatUsage(p), /Disabled reason: billing_not_configured/);
+});

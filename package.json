@@ -12,6 +12,9 @@
   "scripts": {
     "test": "node --test"
   },
+  "optionalDependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.139"
+  },
   "engines": {
     "node": ">=20"
   }

@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { execSync } from "child_process";
+import { probeClaudeSdkRateLimit } from "./sdk-probe.mjs";
 import { formatUsage, parseUsage } from "./usage-parser.mjs";
 
 function sh(cmd: string, timeoutMs = 20000): string {
@@ -68,14 +69,30 @@ export default function register(api: any) {
   const tmuxSession = cfg.tmuxSession || "claude_usage_cmd";
   const timeoutMs = typeof cfg.timeoutMs === "number" ? cfg.timeoutMs : 20000;
   const claudeCommand = cfg.claudeCommand || "claude";
+  const sdkProbeEnabled = Boolean(cfg.sdkProbe);
+  const sdkProbeTimeoutMs = typeof cfg.sdkProbeTimeoutMs === "number" ? cfg.sdkProbeTimeoutMs : 15000;
+  const sdkProbeClaudeExecutable = cfg.sdkProbeClaudeExecutable || "/usr/bin/claude";
 
   const handler = async (ctx: any) => {
     try {
+      const args = String(ctx?.args || "");
       const raw = fetchUsageRaw(tmuxSession, timeoutMs, claudeCommand);
-      const parsed = parseUsage(raw);
-      const wantRaw = /(?:^|\s)(raw|--raw)(?:\s|$)/i.test(String(ctx?.args || ""));
+      const wantRaw = /(?:^|\s)(raw|--raw)(?:\s|$)/i.test(args);
+      const wantSdkProbe = sdkProbeEnabled || /(?:^|\s)(sdk|--sdk|probe|--probe)(?:\s|$)/i.test(args);
+
+      let sdkOverage = null;
+      let sdkProbe = null;
+      if (wantSdkProbe) {
+        sdkProbe = await probeClaudeSdkRateLimit({
+          timeoutMs: sdkProbeTimeoutMs,
+          pathToClaudeCodeExecutable: sdkProbeClaudeExecutable,
+        });
+        sdkOverage = sdkProbe?.rateLimitInfo || null;
+      }
+
+      const parsed = parseUsage(raw, new Date(), { sdkOverage });
       if (wantRaw) return { text: parsed.clean.slice(-3500) };
-      return { text: formatUsage(parsed) };
+      return { text: formatUsage(parsed, { sdkProbe }) };
     } catch (err: any) {
       return {
         text: `Anthrometer failed.\n${err?.message || String(err)}\nHint: run 'claude' once and login, then retry /anthrometer.`,
