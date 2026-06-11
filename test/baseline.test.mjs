@@ -21,7 +21,14 @@ test('openclaw.plugin.json is valid and has required fields', async () => {
   assert.ok(manifest.activation, 'manifest must have activation');
   assert.equal(manifest.activation.onStartup, true);
   assert.ok(manifest.configSchema, 'manifest must declare configSchema');
-  assert.deepEqual(Object.keys(manifest.configSchema.properties).sort(), ['claudeCommand', 'timeoutMs', 'tmuxSession']);
+  assert.deepEqual(Object.keys(manifest.configSchema.properties).sort(), [
+    'claudeCommand',
+    'sdkProbe',
+    'sdkProbeClaudeExecutable',
+    'sdkProbeTimeoutMs',
+    'timeoutMs',
+    'tmuxSession',
+  ]);
 });
 
 test('package.json has matching version and required scripts', async () => {

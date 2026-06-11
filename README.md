@@ -17,6 +17,7 @@ It now supports both **subscription** and **API-style** usage layouts when prese
 - **Weekly window**: used %, remaining %, reset time, and countdown
 - **Extra usage**: enabled/exhausted state, spent vs cap, available amount, overage amount, reset time/countdown
 - **API budget** (when available): month usage %, dollars spent/cap, dollars remaining, reset countdown
+- **Agent SDK overage state** (optional): `rate_limit_event` status, utilization, overage usage flag, reset times; dollar balance is reported as unavailable unless Claude exposes it
 
 ## Install (local extension)
 Place this folder under:
@@ -30,6 +31,7 @@ Enable in `openclaw.json`:
 - `plugins.allow` includes `"anthrometer"`
 - `plugins.entries["anthrometer"].enabled = true`
 - optional: `plugins.entries["anthrometer"].config.claudeCommand` (default `"claude"`)
+- optional: `plugins.entries["anthrometer"].config.sdkProbe = true` to always run the minimal Agent SDK `rate_limit_event` probe; or pass `/anthrometer sdk` ad hoc
 
 Restart gateway.
 
@@ -37,6 +39,7 @@ Restart gateway.
 - `claude` CLI installed and logged in on host
 - `tmux`
 - Node 20+
+- Optional for SDK probe: `@anthropic-ai/claude-agent-sdk` and Claude Code executable path (defaults to `/usr/bin/claude`)
 
 ## Test
 ```bash

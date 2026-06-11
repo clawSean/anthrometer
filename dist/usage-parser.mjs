@@ -23,6 +23,17 @@ function formatUtcIso(dt) {
   return dt.toISOString();
 }
 
+function coerceDate(value) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return new Date(value > 10_000_000_000 ? value : value * 1000);
+  }
+  if (typeof value === "string" && value.trim()) {
+    const dt = new Date(value);
+    return Number.isNaN(dt.getTime()) ? null : dt;
+  }
+  return null;
+}
+
 export function parseResetTime(resetText, now = new Date()) {
   if (!resetText) return null;
 
@@ -245,9 +256,68 @@ function parseLocalStats(clean) {
   };
 }
 
-export function parseUsage(raw = "", now = new Date()) {
+function parseJsonLine(line) {
+  const trimmed = String(line || "").trim();
+  if (!trimmed) return null;
+  const data = trimmed.match(/^data:\s*(.+)$/i)?.[1]?.trim();
+  const candidate = data && data !== "[DONE]" ? data : trimmed;
+  if (!candidate.startsWith("{")) return null;
+  try { return JSON.parse(candidate); } catch { return null; }
+}
+
+function extractRateLimitInfo(event = {}) {
+  return event?.rate_limit_info && typeof event.rate_limit_info === "object" ? event.rate_limit_info : event;
+}
+
+export function normalizeSdkOverageInfo(info = {}, now = new Date()) {
+  info = extractRateLimitInfo(info);
+  if (!info || typeof info !== "object") return null;
+
+  const rateLimitType = typeof info.rate_limit_type === "string" ? info.rate_limit_type : typeof info.rateLimitType === "string" ? info.rateLimitType : null;
+  const status = typeof info.status === "string" ? info.status : null;
+  const overageStatus = typeof info.overage_status === "string" ? info.overage_status : typeof info.overageStatus === "string" ? info.overageStatus : null;
+  const overageDisabledReason = typeof info.overage_disabled_reason === "string" ? info.overage_disabled_reason : typeof info.overageDisabledReason === "string" ? info.overageDisabledReason : null;
+  const isUsingOverage = typeof info.is_using_overage === "boolean" ? info.is_using_overage : typeof info.isUsingOverage === "boolean" ? info.isUsingOverage : null;
+  const utilizationRaw = typeof info.utilization === "number" && Number.isFinite(info.utilization) ? info.utilization : null;
+  const utilization = utilizationRaw != null && utilizationRaw > 1 ? utilizationRaw / 100 : utilizationRaw;
+  const resetsAtRaw = info.resets_at ?? info.resetsAt ?? null;
+  const overageResetsAtRaw = info.overage_resets_at ?? info.overageResetsAt ?? null;
+  const resetsAt = coerceDate(resetsAtRaw);
+  const overageResetsAt = coerceDate(overageResetsAtRaw);
+
+  if (!rateLimitType && !status && !overageStatus && !overageDisabledReason && isUsingOverage == null && utilization == null && !resetsAt && !overageResetsAt) return null;
+
+  return {
+    source: "claude-agent-sdk-rate-limit-event",
+    rateLimitType,
+    status,
+    overageStatus,
+    overageDisabledReason,
+    isUsingOverage,
+    utilization,
+    pctUsed: utilization != null ? Math.round(utilization * 100) : null,
+    pctRemaining: utilization != null ? Math.max(0, 100 - Math.round(utilization * 100)) : null,
+    utilizationPercent: utilization != null ? Math.round(utilization * 100) : null,
+    resetsAt: resetsAtRaw ?? formatUtcIso(resetsAt),
+    resetsAtIso: formatUtcIso(resetsAt),
+    resetsIn: resetsAt ? formatDuration(resetsAt.getTime() - now.getTime()) : null,
+    overageResetsAt: overageResetsAtRaw ?? formatUtcIso(overageResetsAt),
+    overageResetsAtIso: formatUtcIso(overageResetsAt),
+    overageResetsIn: overageResetsAt ? formatDuration(overageResetsAt.getTime() - now.getTime()) : null,
+    balanceAvailable: false,
+    balanceNote: "Extra-usage dollar balance is not exposed by the Claude Agent SDK rate_limit_event.",
+  };
+}
+
+function parseRateLimitEvents(clean = "") {
+  return clean.split(/\n+/).map(parseJsonLine).filter((event) => event?.type === "rate_limit_event");
+}
+
+export function parseUsage(raw = "", now = new Date(), options = {}) {
   const clean = stripAnsi(raw);
   const lines = clean.split("\n").map((l) => l.trimEnd());
+  const rateLimitEvents = parseRateLimitEvents(clean);
+  const sdkOverage = normalizeSdkOverageInfo(options.sdkOverage || options.rateLimitInfo || rateLimitEvents[0] || null, now);
 
   const fiveHour = parseWindowSection(lines, /^current session$/i, now)
     || parseWindowSection(lines, /^current 5[ -]?hour(?: window)?$/i, now)
@@ -276,6 +346,9 @@ export function parseUsage(raw = "", now = new Date()) {
     extra,
     api,
     localStats,
+    rateLimitEvents,
+    overage: sdkOverage,
+    sdkOverage,
     profileLine,
     clean,
   };
@@ -319,6 +392,28 @@ function formatResetLine(prefix, resetText, resetIn) {
   return `${prefix}${parts.join(" · ")}`;
 }
 
+function formatSdkResetLine(prefix, iso, resetIn) {
+  const parts = [];
+  if (iso) parts.push(iso);
+  if (resetIn) parts.push(`in ${resetIn}`);
+  return parts.length ? `• ↺ ${prefix} ${parts.join(" · ")}` : null;
+}
+
+function formatSdkOverageBlock(overage) {
+  if (!overage) return null;
+  const lines = ["", `🧩 𝗦𝗗𝗞 Overage — ${overage.overageStatus || overage.status || "reported"}`];
+  if (overage.pctUsed != null) lines.push(`• Utilization: ${progressBar(overage.pctUsed, 10)}  ${overage.pctUsed}%`);
+  lines.push(`• Using overage: ${overage.isUsingOverage == null ? "unavailable" : overage.isUsingOverage ? "yes" : "no"}`);
+  const limitReset = formatSdkResetLine("limit resets", overage.resetsAtIso, overage.resetsIn);
+  if (limitReset) lines.push(limitReset);
+  const overageReset = formatSdkResetLine("overage resets", overage.overageResetsAtIso, overage.overageResetsIn);
+  if (overageReset) lines.push(overageReset);
+  if (overage.overageDisabledReason) lines.push(`• Disabled reason: ${overage.overageDisabledReason}`);
+  lines.push("• Dollar balance: unavailable");
+  if (overage.isUsingOverage === true) lines.push("• Claude is using overage capacity");
+  return lines.join("\n");
+}
+
 function computeStatus(parsed) {
   const ex = parsed?.extra;
   if (ex?.status === "exhausted") {
@@ -360,12 +455,14 @@ function computeStatus(parsed) {
   };
 }
 
-export function formatUsage(parsed) {
+export function formatUsage(parsed, options = {}) {
   const hasUsageData = Boolean(
     parsed?.fiveHour?.pctUsed != null
     || parsed?.week?.pctUsed != null
     || parsed?.api
     || parsed?.localStats
+    || parsed?.sdkOverage
+    || parsed?.overage
     || parsed?.extra?.status === "enabled"
     || parsed?.extra?.status === "exhausted"
     || parsed?.extra?.status === "not enabled"
@@ -454,6 +551,13 @@ export function formatUsage(parsed) {
     } else {
       lines.push("• Unknown");
     }
+  }
+
+  const sdkBlock = formatSdkOverageBlock(parsed?.sdkOverage || parsed?.overage);
+  if (sdkBlock) lines.push(sdkBlock);
+
+  if (options?.sdkProbe && options.sdkProbe.ok === false && options.sdkProbe.reason) {
+    lines.push("", `🧩 𝗦𝗗𝗞 Overage — unavailable (${options.sdkProbe.reason})`, "• Dollar balance: unavailable");
   }
 
   lines.push("", `${status.emoji} ${status.hint}`);
