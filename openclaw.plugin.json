@@ -3,6 +3,7 @@
   "name": "Anthrometer",
   "version": "0.1.0",
   "description": "No-LLM Anthropic usage meter slash command for OpenClaw.",
+  "activation": { "onStartup": true },
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
