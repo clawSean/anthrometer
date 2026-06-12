@@ -1,16 +1,61 @@
 {
   "id": "anthrometer",
   "name": "Anthrometer",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "No-LLM Anthropic usage meter slash command for OpenClaw.",
-  "activation": { "onStartup": true },
+  "activation": {
+    "onStartup": true
+  },
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
     "properties": {
-      "tmuxSession": { "type": "string", "default": "claude_usage_cmd" },
-      "timeoutMs": { "type": "number", "default": 20000 },
-      "claudeCommand": { "type": "string", "default": "claude" }
+      "tmuxSession": {
+        "type": "string",
+        "default": "claude_usage_cmd"
+      },
+      "timeoutMs": {
+        "type": "number",
+        "default": 120000
+      },
+      "claudeCommand": {
+        "type": "string",
+        "default": "claude"
+      },
+      "oauth": {
+        "type": "boolean",
+        "default": true
+      },
+      "oauthTimeoutMs": {
+        "type": "number",
+        "default": 10000
+      },
+      "credentialsPath": {
+        "type": "string"
+      },
+      "sdkProbe": {
+        "type": "boolean",
+        "default": false
+      },
+      "sdkProbeTimeoutMs": {
+        "type": "number",
+        "default": 30000
+      },
+      "sdkProbeClaudeExecutable": {
+        "type": "string"
+      },
+      "oauthCacheTtlMs": {
+        "type": "number",
+        "default": 120000
+      },
+      "oauthStaleTtlMs": {
+        "type": "number",
+        "default": 1800000
+      },
+      "keepTmuxSession": {
+        "type": "boolean",
+        "default": false
+      }
     }
   }
 }

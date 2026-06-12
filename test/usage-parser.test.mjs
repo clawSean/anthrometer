@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseUsage, formatUsage, stripAnsi, parseResetTime, formatDuration } from '../src/usage-parser.mjs';
+import { parseUsage, formatUsage, stripAnsi, parseResetTime, formatDuration, normalizeSdkOverageInfo } from '../src/usage-parser.mjs';
 
 const fixedNow = new Date('2026-04-05T05:20:00Z');
 
@@ -109,6 +109,46 @@ test('formatUsage emits clear remaining usage lines', () => {
   assert.match(out, /💸[\s\S]*Spend: \$5\.75 \/ \$5\.00 spent/);
   assert.match(out, /over cap by \$0\.75/);
   assert.match(out, /↺ resets/i);
+});
+
+test('formatUsage renders SDK overage state without inventing dollars', () => {
+  const p = parseUsage('', fixedNow, {
+    sdkOverage: {
+      status: 'allowed',
+      resetsAt: 1778622600,
+      rateLimitType: 'five_hour',
+      overageStatus: 'rejected',
+      overageDisabledReason: 'org_level_disabled',
+      isUsingOverage: false,
+      utilization: 0.82,
+    },
+  });
+
+  assert.equal(p.sdkOverage.overageStatus, 'rejected');
+  assert.equal(p.sdkOverage.overageDisabledReason, 'org_level_disabled');
+  assert.equal(p.sdkOverage.utilizationPercent, 82);
+
+  const out = formatUsage(p);
+  assert.match(out, /Overage status: rejected/i);
+  assert.match(out, /Reason: org level disabled/i);
+  assert.match(out, /Window utilization:[\s\S]*82%/i);
+  assert.match(out, /Dollar balance: unavailable/i);
+  assert.doesNotMatch(out, /\$[0-9]/);
+});
+
+test('normalizeSdkOverageInfo supports active overage state', () => {
+  const normalized = normalizeSdkOverageInfo({
+    status: 'rejected',
+    rateLimitType: 'overage',
+    overageStatus: 'allowed',
+    overageResetsAt: 1778850000,
+    isUsingOverage: true,
+  }, fixedNow);
+
+  assert.equal(normalized.rateLimitType, 'overage');
+  assert.equal(normalized.overageStatus, 'allowed');
+  assert.equal(normalized.isUsingOverage, true);
+  assert.equal(normalized.balanceAvailable, false);
 });
 
 test('formatUsage does not report healthy usage when output is unparsable', () => {

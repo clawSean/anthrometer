@@ -21,7 +21,7 @@ test('openclaw.plugin.json is valid and has required fields', async () => {
   assert.ok(manifest.activation, 'manifest must have activation');
   assert.equal(manifest.activation.onStartup, true);
   assert.ok(manifest.configSchema, 'manifest must declare configSchema');
-  assert.deepEqual(Object.keys(manifest.configSchema.properties).sort(), ['claudeCommand', 'timeoutMs', 'tmuxSession']);
+  assert.deepEqual(Object.keys(manifest.configSchema.properties).sort(), ['claudeCommand', 'credentialsPath', 'keepTmuxSession', 'oauth', 'oauthCacheTtlMs', 'oauthStaleTtlMs', 'oauthTimeoutMs', 'sdkProbe', 'sdkProbeClaudeExecutable', 'sdkProbeTimeoutMs', 'timeoutMs', 'tmuxSession']);
 });
 
 test('package.json has matching version and required scripts', async () => {
@@ -126,7 +126,7 @@ test('handler returns friendly error when tmux/claude unavailable', async () => 
 
   let handler;
   const fakeApi = {
-    getConfig: () => ({ tmuxSession: 'anthrometer_test_nonexistent', timeoutMs: 3000 }),
+    getConfig: () => ({ tmuxSession: 'anthrometer_test_nonexistent', timeoutMs: 3000, credentialsPath: '/nonexistent/creds.json' }),
     registerCommand: (cmd) => { handler = cmd.handler; },
   };
   register(fakeApi);
@@ -147,7 +147,7 @@ test('handler respects timeoutMs config — does not hang beyond configured limi
 
   let handler;
   const fakeApi = {
-    getConfig: () => ({ tmuxSession: 'anthrometer_timeout_test', timeoutMs: 4000 }),
+    getConfig: () => ({ tmuxSession: 'anthrometer_timeout_test', timeoutMs: 4000, credentialsPath: '/nonexistent/creds.json' }),
     registerCommand: (cmd) => { handler = cmd.handler; },
   };
   register(fakeApi);
